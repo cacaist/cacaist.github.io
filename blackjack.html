@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultimate Blackjack Game</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; position: relative; }
+        .card { width: 50%; margin: 5px; }
+        #buttons button { margin: 5px; padding: 10px; }
+        .score { font-size: 1.5rem; margin: 10px 0; }
+        #rules { 
+            position: absolute; 
+            top: 5%; 
+            right: 2%; 
+            width: 20%; 
+            text-align: left; 
+            border: 1px solid #ccc; 
+            padding: 15px; 
+            background-color: #f9f9f9; 
+            border-radius: 8px; 
+        }
+    </style>
+</head>
+<body>
+    <br>
+    <br>
+    <br>
+    <h1>Blackjack Game</h1>
+    <div id="game-area" class="d-flex flex-column align-items-center margin-top: 50px;">
+        <h2>Dealer's Hand</h2>
+        <div id="dealer-cards" class="d-flex justify-content-center"></div>
+        <p id="dealer-score" class="score">Card total: 0</p>
+        <h2>Your Hand</h2>
+        <div id="player-cards" class="d-flex justify-content-center"></div>
+        <p id="player-score" class="score">Card total: 0</p>
+    </div>
+    <div id="buttons">
+        <button onclick="startGame()" class="btn btn-primary">New Game</button>
+        <button onclick="hit()" class="btn btn-success">Hit</button>
+        <button onclick="stand()" class="btn btn-warning">Stand</button>
+    </div>
+    <p id="result" style="font-size: larger; font-weight: bold;"></p>
+
+    <div id="rules">
+        <h3 style=" text-align: center;">Game Rules</h3>
+        <ul>
+            <li>The goal is to get as close to 21 as possible without exceeding it.</li>
+            <li>You can "Hit" to draw another card.</li>
+            <li>You can "Stand" to end your turn.</li>
+            <li>Face cards (King, Queen, Jack) are worth 10 points.</li>
+            <li>Aces are worth 1 or 11 points, whichever is more favorable.</li>
+            <li>The dealer must draw until their score is at least 17.</li>
+            <li>If your score exceeds 21, you lose (bust).</li>
+        </ul>
+    </div>
+
+    <script>
+        let deckId;
+        let playerHand = [], dealerHand = [];
+        
+        async function startGame() {
+            const res = await fetch('https://deckofcardsapi.com/api/deck/new/shuffle/?deck_count=1');
+            const data = await res.json();
+            deckId = data.deck_id;
+            playerHand = [];
+            dealerHand = [];
+            document.getElementById('player-cards').innerHTML = '';
+            document.getElementById('dealer-cards').innerHTML = '';
+            document.getElementById('result').innerText = '';
+            updateScores();
+            await drawCards(2, 'player');
+            await drawCards(2, 'dealer');
+        }
+        
+        async function drawCards(count, who) {
+            const res = await fetch(`https://deckofcardsapi.com/api/deck/${deckId}/draw/?count=${count}`);
+            const data = await res.json();
+            const hand = who === 'player' ? playerHand : dealerHand;
+            
+            data.cards.forEach(card => {
+                hand.push(card);
+                const img = document.createElement('img');
+                img.src = card.image;
+                img.classList.add('card');
+                document.getElementById(`${who}-cards`).appendChild(img);
+            });
+            updateScores();
+        }
+        
+        async function hit() {
+            await drawCards(1, 'player');
+            if (getHandValue(playerHand) > 21) {
+                endGame('You busted! Dealer wins.');
+            }
+        }
+        
+        async function stand() {
+            while (getHandValue(dealerHand) < 17) {
+                await drawCards(1, 'dealer');
+            }
+            checkWinner();
+        }
+        
+        function getHandValue(hand) {
+            let value = 0;
+            let aceCount = 0;
+            hand.forEach(card => {
+                let cardValue = card.value;
+                if (['KING', 'QUEEN', 'JACK'].includes(cardValue)) cardValue = 10;
+                else if (cardValue === 'ACE') {
+                    cardValue = 11;
+                    aceCount++;
+                } else {
+                    cardValue = parseInt(cardValue);
+                }
+                value += cardValue;
+            });
+            while (value > 21 && aceCount > 0) {
+                value -= 10;
+                aceCount--;
+            }
+            return value;
+        }
+        
+        function updateScores() {
+            document.getElementById('player-score').innerText = `Card Total: ${getHandValue(playerHand)}`;
+            document.getElementById('dealer-score').innerText = `Card Total: ${getHandValue(dealerHand)}`;
+        }
+        
+        function checkWinner() {
+            const playerScore = getHandValue(playerHand);
+            const dealerScore = getHandValue(dealerHand);
+            
+            if (dealerScore > 21 || playerScore > dealerScore) {
+                endGame('You win!');
+            } else if (playerScore < dealerScore) {
+                endGame('Dealer wins.');
+            } else {
+                endGame("It's a tie!");
+            }
+        }
+        
+        function endGame(message) {
+            document.getElementById('result').innerText = message;
+        }
+    </script>
+</body>
+</html>
